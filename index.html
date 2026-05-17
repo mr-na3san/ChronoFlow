@@ -16,9 +16,9 @@
 <meta property="og:description" content="Professional Stopwatch & Timer — Offline PWA">
 <meta property="og:type" content="website">
 <title>ChronoFlow</title>
-<link rel="icon" type="image/png" href="logo.png">
-<link rel="shortcut icon" type="image/png" href="logo.png">
-<link rel="apple-touch-icon" href="logo.png">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="shortcut icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
 <style>
 :root {
@@ -84,6 +84,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 #onboarding{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;padding:32px;transition:opacity 0.5s ease,visibility 0.5s ease}
 #onboarding.hidden{opacity:0;visibility:hidden;pointer-events:none}
 .onb-logo{font-size:3.2rem;font-weight:900;letter-spacing:-0.05em;background:linear-gradient(135deg,var(--accent) 0%,var(--accent2) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;animation:float 3s ease-in-out infinite}
+.onb-logo-img{width:96px;height:96px;object-fit:contain;margin-bottom:12px;animation:float 3s ease-in-out infinite;border-radius:22px}
 .onb-sub{color:var(--text2);font-size:1rem;margin-bottom:48px;text-align:center;letter-spacing:0.05em;text-transform:uppercase;font-size:0.75rem}
 .onb-cards{display:flex;flex-direction:column;gap:16px;width:100%;max-width:340px;margin-bottom:40px}
 .onb-card{background:var(--glass2);border:1px solid var(--border2);border-radius:var(--radius2);padding:18px 20px;display:flex;align-items:center;gap:16px;opacity:0;transform:translateY(20px);animation:slide-up 0.5s ease forwards}
@@ -354,6 +355,7 @@ kbd{background:var(--glass2);border:1px solid var(--border2);border-radius:5px;p
 </div>
 
 <div id="onboarding">
+<img src="logo.png" alt="ChronoFlow" class="onb-logo-img" onerror="this.style.display='none'">
 <div class="onb-logo">ChronoFlow</div>
 <div class="onb-sub" data-i18n="onb-sub">Professional Time Tracking</div>
 <div class="onb-cards">
@@ -624,6 +626,12 @@ let wakeLockSentinel=null;
 let deferredPrompt=null;
 let appInited=false;
 let alarmInterval=null;
+
+window.addEventListener('beforeinstallprompt',e=>{
+e.preventDefault();
+deferredPrompt=e;
+if(appInited)showInstallBanner();
+});
 
 const state={
 sw:{running:false,startTime:0,elapsed:0,laps:[],lapStart:0,animId:null},
@@ -1118,7 +1126,10 @@ stopAlarmBtn.addEventListener('click',onStop);
 }
 setTimeout(stopAlarm,60000);
 showToast(`${tm.label||t('timer-done')}`,'warn',5000);
-sendNotification(tm.label||'ChronoFlow',t('timer-done'));
+sendNotification(
+tm.label?`⏱ ${tm.label}`:'⏱ ChronoFlow',
+tm.label?`"${tm.label}" has finished!`:'Timer finished!'
+);
 if(!state.timers.some(t=>t.running))releaseWakeLock();
 if(tm.repeat){setTimeout(()=>{stopAlarm();timerReset(tm);timerStart(tm)},800)}
 save();
@@ -1135,14 +1146,24 @@ save();
 async function sendNotification(title,body){
 if(!notifOn)return;
 if(!('Notification'in window))return;
-if(Notification.permission==='granted'){
-try{new Notification(title,{body,icon:'',tag:'chronoflow-timer',renotify:true})}catch(e){}
-}else if(Notification.permission==='default'){
-const perm=await Notification.requestPermission();
-if(perm==='granted'){
-try{new Notification(title,{body,icon:'',tag:'chronoflow-timer',renotify:true})}catch(e){}
+if(Notification.permission!=='granted')return;
+if('serviceWorker'in navigator){
+const reg=await navigator.serviceWorker.getRegistration('./sw.js').catch(()=>null);
+if(reg){
+reg.showNotification(title,{
+body,
+icon:'./icon.png',
+badge:'./icon.png',
+tag:'chronoflow-timer',
+renotify:true,
+requireInteraction:true,
+vibrate:[200,100,200,100,400],
+actions:[{action:'dismiss',title:'Dismiss'}]
+});
+return;
 }
 }
+try{new Notification(title,{body,icon:'./icon.png',tag:'chronoflow-timer',renotify:true})}catch(e){}
 }
 
 function bindTimerEvents(tm,el){
@@ -1212,11 +1233,17 @@ $('notifToggle').addEventListener('click',async function(){
 if(!('Notification'in window)){showToast('Notifications not supported','warn',2000);return}
 if(!notifOn){
 const perm=await Notification.requestPermission();
-if(perm!=='granted'){showToast('Permission denied','warn',2000);return}
-}
-notifOn=!notifOn;this.classList.toggle('on',notifOn);
-showToast(notifOn?'Notifications enabled':'Notifications disabled',notifOn?'success':'info',1500);
+if(perm!=='granted'){showToast('Permission denied','warn',2000);this.classList.toggle('on',false);return}
+notifOn=true;this.classList.toggle('on',true);
 save();
+showToast('Notifications enabled','success',1500);
+await new Promise(r=>setTimeout(r,300));
+sendNotification('ChronoFlow ✓','Notifications are working!');
+}else{
+notifOn=false;this.classList.toggle('on',false);
+save();
+showToast('Notifications disabled','info',1500);
+}
 });
 $('hapticToggle').addEventListener('click',function(){hapticOn=!hapticOn;this.classList.toggle('on',hapticOn);save()});
 $('wakeLockToggle').addEventListener('click',function(){
@@ -1242,20 +1269,42 @@ qsa('.swatch').forEach(sw=>{sw.classList.toggle('active',sw.dataset.color===acce
 }
 }
 
-function setupInstallPrompt(){
-window.addEventListener('beforeinstallprompt',e=>{
-e.preventDefault();deferredPrompt=e;
-setTimeout(()=>$('installBanner').classList.add('show'),3000);
+function registerSW(){
+if(!('serviceWorker'in navigator))return;
+navigator.serviceWorker.register('./sw.js').then(reg=>{
+reg.addEventListener('updatefound',()=>{
+const w=reg.installing;
+w.addEventListener('statechange',()=>{
+if(w.state==='installed'&&navigator.serviceWorker.controller)showToast('Update ready','info',3000);
 });
+});
+}).catch(()=>{});
+}
+
+function showInstallBanner(){
+if(!deferredPrompt)return;
+if(localStorage.getItem('cf_install_dismissed'))return;
+setTimeout(()=>$('installBanner').classList.add('show'),2500);
+}
+
+function setupInstallPrompt(){
+if(deferredPrompt)showInstallBanner();
 $('installBtn').addEventListener('click',async()=>{
 if(!deferredPrompt)return;
 deferredPrompt.prompt();
 const{outcome}=await deferredPrompt.userChoice;
 deferredPrompt=null;$('installBanner').classList.remove('show');
-if(outcome==='accepted')showToast('App installed!','success');
+if(outcome==='accepted')showToast('App installed! 🎉','success',3000);
 });
-$('dismissInstall').addEventListener('click',()=>$('installBanner').classList.remove('show'));
-window.addEventListener('appinstalled',()=>{$('installBanner').classList.remove('show');showToast('Installed!','success')});
+$('dismissInstall').addEventListener('click',()=>{
+$('installBanner').classList.remove('show');
+localStorage.setItem('cf_install_dismissed','1');
+});
+window.addEventListener('appinstalled',()=>{
+$('installBanner').classList.remove('show');
+deferredPrompt=null;
+showToast('App installed! 🎉','success',3000);
+});
 }
 
 
@@ -1291,6 +1340,7 @@ $('notifToggle').classList.toggle('on',notifOn);
 
 function init(){
 load();
+try{registerSW()}catch(e){}
 const loader=$('loader'),onboarding=$('onboarding'),app=$('app');
 applyTheme();applyLang();applyAccent();syncSettingsUI();
 
@@ -1312,7 +1362,6 @@ if(!appInited)initApp();
 async function initApp(){
 if(appInited)return;
 appInited=true;
-try{registerSW()}catch(e){}
 try{setupInstallPrompt()}catch(e){}
 initTabIndicator();
 applyTheme();applyLang();applyAccent();syncSettingsUI();
