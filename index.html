@@ -18,6 +18,8 @@
 <title>ChronoFlow</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="shortcut icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
 <style>
 :root {
 --accent: #00e5ff;
@@ -1256,56 +1258,6 @@ $('dismissInstall').addEventListener('click',()=>$('installBanner').classList.re
 window.addEventListener('appinstalled',()=>{$('installBanner').classList.remove('show');showToast('Installed!','success')});
 }
 
-function generateIcons(){
-const sizes=[192,512];const icons=[];
-sizes.forEach(sz=>{
-const c=document.createElement('canvas');c.width=sz;c.height=sz;
-const ctx=c.getContext('2d');
-const g=ctx.createLinearGradient(0,0,sz,sz);
-g.addColorStop(0,'#00e5ff');g.addColorStop(1,'#7c3aed');
-ctx.fillStyle=g;ctx.beginPath();
-const r=sz*0.18;ctx.moveTo(r,0);ctx.lineTo(sz-r,0);ctx.arcTo(sz,0,sz,r,r);
-ctx.lineTo(sz,sz-r);ctx.arcTo(sz,sz,sz-r,sz,r);ctx.lineTo(r,sz);
-ctx.arcTo(0,sz,0,sz-r,r);ctx.lineTo(0,r);ctx.arcTo(0,0,r,0,r);
-ctx.closePath();ctx.fill();
-ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font=`bold ${sz*0.45}px -apple-system,sans-serif`;
-ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏱',sz/2,sz/2);
-icons.push({size:sz,url:c.toDataURL('image/png')});
-});
-return icons;
-}
-
-function probeLogoUrl(){
-return new Promise(resolve=>{
-const img=new Image();
-img.onload=()=>resolve('logo.png');
-img.onerror=()=>resolve(null);
-img.src='logo.png';
-});
-}
-
-async function registerManifest(){
-const logoUrl=await probeLogoUrl();
-let iconList;
-if(logoUrl){
-iconList=[
-{src:logoUrl,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-{src:logoUrl,sizes:'512x512',type:'image/png',purpose:'any maskable'}
-];
-}else{
-const icons=generateIcons();
-iconList=icons.map(i=>({src:i.url,sizes:`${i.size}x${i.size}`,type:'image/png',purpose:'any maskable'}));
-}
-const manifest={name:'ChronoFlow',short_name:'ChronoFlow',description:'Professional Stopwatch & Timer',start_url:'./',display:'standalone',orientation:'portrait',background_color:'#0a0a0f',theme_color:'#0a0a0f',icons:iconList};
-const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-const url=URL.createObjectURL(blob);
-const link=document.createElement('link');link.rel='manifest';link.href=url;
-document.head.appendChild(link);
-const touchIcon=document.createElement('link');
-touchIcon.rel='apple-touch-icon';
-touchIcon.href=logoUrl||(iconList[0]&&iconList[0].src)||'';
-document.head.appendChild(touchIcon);
-}
 
 function setupKeyboard(){
 document.addEventListener('keydown',e=>{
@@ -1360,7 +1312,6 @@ if(!appInited)initApp();
 async function initApp(){
 if(appInited)return;
 appInited=true;
-try{await registerManifest()}catch(e){}
 try{registerSW()}catch(e){}
 try{setupInstallPrompt()}catch(e){}
 initTabIndicator();
