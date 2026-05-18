@@ -355,7 +355,7 @@ kbd{background:var(--glass2);border:1px solid var(--border2);border-radius:5px;p
 </div>
 
 <div id="onboarding">
-<img src="logo.png" alt="ChronoFlow" class="onb-logo-img" onerror="this.style.display='none'">
+<img src="icon.png" alt="ChronoFlow" class="onb-logo-img" onerror="this.style.display='none'">
 <div class="onb-logo">ChronoFlow</div>
 <div class="onb-sub" data-i18n="onb-sub">Professional Time Tracking</div>
 <div class="onb-cards">
@@ -1147,23 +1147,23 @@ async function sendNotification(title,body){
 if(!notifOn)return;
 if(!('Notification'in window))return;
 if(Notification.permission!=='granted')return;
-if('serviceWorker'in navigator){
-const reg=await navigator.serviceWorker.getRegistration('./sw.js').catch(()=>null);
-if(reg){
-reg.showNotification(title,{
+const notifOptions={
 body,
 icon:'./icon.png',
 badge:'./icon.png',
-tag:'chronoflow-timer',
+tag:'chronoflow-'+Date.now(),
 renotify:true,
 requireInteraction:true,
-vibrate:[200,100,200,100,400],
-actions:[{action:'dismiss',title:'Dismiss'}]
-});
-return;
+vibrate:[300,100,300,100,500],
+silent:false
+};
+if('serviceWorker'in navigator){
+try{
+const reg=await navigator.serviceWorker.ready;
+if(reg){await reg.showNotification(title,notifOptions);return}
+}catch(e){}
 }
-}
-try{new Notification(title,{body,icon:'./icon.png',tag:'chronoflow-timer',renotify:true})}catch(e){}
+try{new Notification(title,notifOptions)}catch(e){}
 }
 
 function bindTimerEvents(tm,el){
